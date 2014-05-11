@@ -96,6 +96,8 @@ ssize_t write_colored(int fd, void* buffer, size_t len){
 	NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@LINE_REGEX options:NSRegularExpressionCaseInsensitive error:&error];
 	NSArray *matches = [regex matchesInString:str options:0 range:NSMakeRange(0, [str length])];
 
+	if([matches count] == 0)
+		return write(fd, buffer, len);
 
 	for (NSTextCheckingResult *match in matches) {
 
