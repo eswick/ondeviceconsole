@@ -61,7 +61,7 @@ int unix_connect(char* path){
 	struct sockaddr_un sun;
 	int s;
 
-	if((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
 		return (-1);
 	(void)fcntl(s, F_SETFD, 1);
 
@@ -93,30 +93,43 @@ ssize_t write_colored(int fd, void* buffer, size_t len){
 	free(escapedBuffer);
 
 	NSError *error = nil;
-	NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@LINE_REGEX options:NSRegularExpressionCaseInsensitive error:&error];
-	NSArray *matches = [regex matchesInString:str options:0 range:NSMakeRange(0, [str length])];
+	NSRegularExpression *regex = [NSRegularExpression
+																	regularExpressionWithPattern:@LINE_REGEX
+																	options:NSRegularExpressionCaseInsensitive
+																	error:&error];
+
+	NSArray *matches = [regex matchesInString:str
+														options:0
+														range:NSMakeRange(0, [str length])];
 
 	if([matches count] == 0)
 		return write(fd, buffer, len);
 
 	for (NSTextCheckingResult *match in matches) {
 
-		if([match numberOfRanges] < 6)
+		if([match numberOfRanges] < 6) {
+			write(fd, buffer, len); // if entry doesn't match regex, print uncolored
 			continue;
+		}
 
-		NSRange dateRange 		= [match rangeAtIndex:1];
-		NSRange deviceRange 	= [match rangeAtIndex:2];
-		NSRange processRange 	= [match rangeAtIndex:3];
-		NSRange pidRange 		= [match rangeAtIndex:4];
-		NSRange typeRange 		= [match rangeAtIndex:5];
-		NSRange logRange		= [match rangeAtIndex:6];
+		NSRange dateRange 	 =  [match rangeAtIndex:1];
+		NSRange deviceRange  =  [match rangeAtIndex:2];
+		NSRange processRange =  [match rangeAtIndex:3];
+		NSRange pidRange 		 =  [match rangeAtIndex:4];
+		NSRange typeRange 	 =  [match rangeAtIndex:5];
+		NSRange logRange		 =  [match rangeAtIndex:6];
 
-		NSString *date 			= [str substringWithRange:dateRange];
-		NSString *device 		= [str substringWithRange:deviceRange];
-		NSString *process 		= [str substringWithRange:processRange];
-		NSString *pid 			= [str substringWithRange:pidRange];
-		NSString *type 			= [str substringWithRange:typeRange];
-		NSString *log 			= [[str substringWithRange:NSMakeRange(logRange.location, [str length] - logRange.location)] stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+		NSString *date 			 =  [str substringWithRange:dateRange];
+		NSString *device 		 =  [str substringWithRange:deviceRange];
+		NSString *process 	 =  [str substringWithRange:processRange];
+		NSString *pid 			 =  [str substringWithRange:pidRange];
+		NSString *type 			 =  [str substringWithRange:typeRange];
+		NSString *log 			 = 	[str substringWithRange:
+																 NSMakeRange(logRange.location,
+																 						 [str length] - logRange.location)];
+
+		log = [log stringByTrimmingCharactersInSet:
+								[NSCharacterSet newlineCharacterSet]];
 
 		NSMutableString *build = [NSMutableString new];
 
@@ -135,16 +148,16 @@ ssize_t write_colored(int fd, void* buffer, size_t len){
 		char *typeColor = COLOR_DARK_WHITE;
 		char *darkTypeColor = COLOR_DARK_WHITE;
 
-		if([type isEqualToString:@"Notice"]){
+		if ([type isEqualToString:@"Notice"]) {
 			typeColor = COLOR_GREEN;
 			darkTypeColor = COLOR_DARK_GREEN;
-		}else if([type isEqualToString:@"Warning"]){
+		} else if ([type isEqualToString:@"Warning"]) {
 			typeColor = COLOR_YELLOW;
 			darkTypeColor = COLOR_DARK_YELLOW;
-		}else if([type isEqualToString:@"Error"]){
+		} else if ([type isEqualToString:@"Error"]) {
 			typeColor = COLOR_RED;
 			darkTypeColor = COLOR_DARK_RED;
-		}else if([type isEqualToString:@"Debug"]){
+		} else if ([type isEqualToString:@"Debug"]) {
 			typeColor = COLOR_MAGENTA;
 			darkTypeColor = COLOR_DARK_MAGENTA;
 		}
@@ -170,7 +183,8 @@ int main(int argc, char **argv, char **envp) {
 
 	int nfd = unix_connect(SOCKET_PATH);
 
-	write(nfd, "watch\n", 6); /* write "watch" command to socket to begin receiving messages */
+	// write "watch" command to socket to begin receiving messages
+	write(nfd, "watch\n", 6);
 
 	struct pollfd pfd[2];
 	unsigned char buf[16384];
