@@ -5,6 +5,8 @@
 #import <fcntl.h>
 #import <poll.h>
 
+#include <tclap/CmdLine.h>
+
 #define SOCKET_PATH "/var/run/lockdown/syslog.sock"
 
 #define COLOR_RESET         "\e[m"
@@ -25,11 +27,9 @@
 #define COLOR_WHITE         "\e[0;37m"
 #define COLOR_DARK_WHITE    "\e[0;37m"
 
-
-
 size_t atomicio(ssize_t (*f) (int, void *, size_t), int fd, void *_s, size_t n)
 {
-  char *s = _s;
+  char *s = (char*)_s;
   size_t pos = 0;
   ssize_t res;
   struct pollfd pfd;
@@ -54,7 +54,7 @@ size_t atomicio(ssize_t (*f) (int, void *, size_t), int fd, void *_s, size_t n)
       pos += (size_t)res;
     }
   }
-  return (pos);
+  return pos;
 }
 
 int unix_connect(char* path) {
@@ -85,7 +85,7 @@ int unix_connect(char* path) {
 
 ssize_t write_colored(int fd, void* buffer, size_t len) {
 
-  char *escapedBuffer = malloc(len + 1);
+  char *escapedBuffer = (char*)malloc(len + 1);
   memcpy(escapedBuffer, buffer, len);
   escapedBuffer[len] = '\0';
 
@@ -145,21 +145,21 @@ ssize_t write_colored(int fd, void* buffer, size_t len) {
     [build appendString:pid];
     [build appendString:@"]"];
 
-    char *typeColor = COLOR_DARK_WHITE;
-    char *darkTypeColor = COLOR_DARK_WHITE;
+    char *typeColor = (char*)COLOR_DARK_WHITE;
+    char *darkTypeColor = (char*)COLOR_DARK_WHITE;
 
     if ([type isEqualToString:@"Notice"]) {
-      typeColor = COLOR_GREEN;
-      darkTypeColor = COLOR_DARK_GREEN;
+      typeColor = (char*)COLOR_GREEN;
+      darkTypeColor = (char*)COLOR_DARK_GREEN;
     } else if ([type isEqualToString:@"Warning"]) {
-      typeColor = COLOR_YELLOW;
-      darkTypeColor = COLOR_DARK_YELLOW;
+      typeColor = (char*)COLOR_YELLOW;
+      darkTypeColor = (char*)COLOR_DARK_YELLOW;
     } else if ([type isEqualToString:@"Error"]) {
-      typeColor = COLOR_RED;
-      darkTypeColor = COLOR_DARK_RED;
+      typeColor = (char*)COLOR_RED;
+      darkTypeColor = (char*)COLOR_DARK_RED;
     } else if ([type isEqualToString:@"Debug"]) {
-      typeColor = COLOR_MAGENTA;
-      darkTypeColor = COLOR_DARK_MAGENTA;
+      typeColor = (char*)COLOR_MAGENTA;
+      darkTypeColor = (char*)COLOR_DARK_MAGENTA;
     }
 
     [build appendString:@(darkTypeColor)];
@@ -181,7 +181,7 @@ ssize_t write_colored(int fd, void* buffer, size_t len) {
 
 int main(int argc, char **argv, char **envp) {
 
-  int nfd = unix_connect(SOCKET_PATH);
+  int nfd = unix_connect((char*)SOCKET_PATH);
 
   // write "watch" command to socket to begin receiving messages
   write(nfd, "watch\n", 6);
