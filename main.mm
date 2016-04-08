@@ -5,6 +5,9 @@
 #import <fcntl.h>
 #import <poll.h>
 
+// C++ libs
+#include <iostream>
+#include <string>
 #include <tclap/CmdLine.h>
 
 #define SOCKET_PATH "/var/run/lockdown/syslog.sock"
@@ -26,6 +29,8 @@
 #define COLOR_DARK_CYAN     "\e[2;36m"
 #define COLOR_WHITE         "\e[0;37m"
 #define COLOR_DARK_WHITE    "\e[0;37m"
+
+std::string program_filter = "";
 
 size_t atomicio(ssize_t (*f) (int, void *, size_t), int fd, void *_s, size_t n)
 {
@@ -112,68 +117,72 @@ ssize_t write_colored(int fd, void* buffer, size_t len) {
       continue;
     }
 
-    NSRange dateRange    =  [match rangeAtIndex:1];
-    NSRange deviceRange  =  [match rangeAtIndex:2];
     NSRange processRange =  [match rangeAtIndex:3];
-    NSRange pidRange     =  [match rangeAtIndex:4];
-    NSRange typeRange    =  [match rangeAtIndex:5];
-    NSRange logRange     =  [match rangeAtIndex:6];
-
-    NSString *date       =  [str substringWithRange:dateRange];
-    NSString *device     =  [str substringWithRange:deviceRange];
     NSString *process    =  [str substringWithRange:processRange];
-    NSString *pid        =  [str substringWithRange:pidRange];
-    NSString *type       =  [str substringWithRange:typeRange];
-    NSString *log        =  [str substringWithRange:
-                                  NSMakeRange(logRange.location,
-                                              [str length] - logRange.location)];
 
-    log = [log stringByTrimmingCharactersInSet:
-                [NSCharacterSet newlineCharacterSet]];
+    std::string cpp_proc_string = std::string{[process UTF8String]};
 
-    NSMutableString *build = [NSMutableString new];
+    if (program_filter == "" || cpp_proc_string == program_filter) {
+      NSRange dateRange    =  [match rangeAtIndex:1];
+      NSRange deviceRange  =  [match rangeAtIndex:2];
+      NSRange pidRange     =  [match rangeAtIndex:4];
+      NSRange typeRange    =  [match rangeAtIndex:5];
+      NSRange logRange     =  [match rangeAtIndex:6];
 
-    [build appendString:@COLOR_DARK_WHITE];
-    [build appendString:date];
-    [build appendString:@" "];
-    [build appendString:device];
-    [build appendString:@" "];
+      NSString *date       =  [str substringWithRange:dateRange];
+      NSString *device     =  [str substringWithRange:deviceRange];
+      NSString *pid        =  [str substringWithRange:pidRange];
+      NSString *type       =  [str substringWithRange:typeRange];
+      NSString *log        =  [str substringWithRange:
+				     NSMakeRange(logRange.location,
+						 [str length] - logRange.location)];
 
-    [build appendString:@COLOR_CYAN];
-    [build appendString:process];
-    [build appendString:@"["];
-    [build appendString:pid];
-    [build appendString:@"]"];
+      log = [log stringByTrimmingCharactersInSet:
+		   [NSCharacterSet newlineCharacterSet]];
+      NSMutableString *build = [NSMutableString new];
 
-    char *typeColor = (char*)COLOR_DARK_WHITE;
-    char *darkTypeColor = (char*)COLOR_DARK_WHITE;
+      [build appendString:@COLOR_DARK_WHITE];
+      [build appendString:date];
+      [build appendString:@" "];
+      [build appendString:device];
+      [build appendString:@" "];
 
-    if ([type isEqualToString:@"Notice"]) {
-      typeColor = (char*)COLOR_GREEN;
-      darkTypeColor = (char*)COLOR_DARK_GREEN;
-    } else if ([type isEqualToString:@"Warning"]) {
-      typeColor = (char*)COLOR_YELLOW;
-      darkTypeColor = (char*)COLOR_DARK_YELLOW;
-    } else if ([type isEqualToString:@"Error"]) {
-      typeColor = (char*)COLOR_RED;
-      darkTypeColor = (char*)COLOR_DARK_RED;
-    } else if ([type isEqualToString:@"Debug"]) {
-      typeColor = (char*)COLOR_MAGENTA;
-      darkTypeColor = (char*)COLOR_DARK_MAGENTA;
+      [build appendString:@COLOR_CYAN];
+      [build appendString:process];
+      [build appendString:@"["];
+      [build appendString:pid];
+      [build appendString:@"]"];
+
+      char *typeColor = (char*)COLOR_DARK_WHITE;
+      char *darkTypeColor = (char*)COLOR_DARK_WHITE;
+
+      if ([type isEqualToString:@"Notice"]) {
+	typeColor = (char*)COLOR_GREEN;
+	darkTypeColor = (char*)COLOR_DARK_GREEN;
+      } else if ([type isEqualToString:@"Warning"]) {
+	typeColor = (char*)COLOR_YELLOW;
+	darkTypeColor = (char*)COLOR_DARK_YELLOW;
+      } else if ([type isEqualToString:@"Error"]) {
+	typeColor = (char*)COLOR_RED;
+	darkTypeColor = (char*)COLOR_DARK_RED;
+      } else if ([type isEqualToString:@"Debug"]) {
+	typeColor = (char*)COLOR_MAGENTA;
+	darkTypeColor = (char*)COLOR_DARK_MAGENTA;
+      }
+
+      [build appendString:@(darkTypeColor)];
+      [build appendString:@" <"];
+      [build appendString:@(typeColor)];
+      [build appendString:type];
+      [build appendString:@(darkTypeColor)];
+      [build appendString:@">"];
+      [build appendString:@COLOR_RESET];
+      [build appendString:@": "];
+      [build appendString:log];
+
+      std::cout << [build UTF8String] << std::endl;
+      [build release];
     }
-
-    [build appendString:@(darkTypeColor)];
-    [build appendString:@" <"];
-    [build appendString:@(typeColor)];
-    [build appendString:type];
-    [build appendString:@(darkTypeColor)];
-    [build appendString:@">"];
-    [build appendString:@COLOR_RESET];
-    [build appendString:@": "];
-    [build appendString:log];
-
-    printf("%s\n", [build UTF8String]);
-    [build release];
   }
 
   return len;
@@ -181,41 +190,61 @@ ssize_t write_colored(int fd, void* buffer, size_t len) {
 
 int main(int argc, char **argv, char **envp) {
 
-  int nfd = unix_connect((char*)SOCKET_PATH);
+  try {
+    TCLAP::CmdLine
+      cmd{"ondeviceconsole lets you see the system log with colored output. "
+  	"Filter by program name as well using the -p argument. "
+  	"Example onconsoledevice -p CommCenter",
+	  ' ',
+  	"1.1.0"};
+    TCLAP::ValueArg<std::string>
+      prog_filter{"p", "program", "Only show for this program", false, "", "string"};
+    cmd.add(prog_filter);
+    cmd.parse(argc, argv);
 
-  // write "watch" command to socket to begin receiving messages
-  write(nfd, "watch\n", 6);
+    program_filter = prog_filter.getValue();
 
-  struct pollfd pfd[2];
-  unsigned char buf[16384];
-  int n = fileno(stdin);
-  int lfd = fileno(stdout);
-  int plen = 16384;
+    int nfd = unix_connect((char*)SOCKET_PATH);
 
-  pfd[0].fd = nfd;
-  pfd[0].events = POLLIN;
+    // write "watch" command to socket to begin receiving messages
+    write(nfd, "watch\n", 6);
 
-  while (pfd[0].fd != -1) {
+    struct pollfd pfd[2];
+    unsigned char buf[16384];
+    int n = fileno(stdin);
+    int lfd = fileno(stdout);
+    int plen = 16384;
 
-    if ((n = poll(pfd, 1, -1)) < 0) {
-      close(nfd);
-      perror("polling error");
-      exit(1);
-    }
+    pfd[0].fd = nfd;
+    pfd[0].events = POLLIN;
 
-    if (pfd[0].revents & POLLIN) {
-      if ((n = read(nfd, buf, plen)) < 0)
-        perror("read error"), exit(1); /* possibly not an error, just disconnection */
-      else if (n == 0) {
-        shutdown(nfd, SHUT_RD);
-        pfd[0].fd = -1;
-        pfd[0].events = 0;
-      } else {
-        if (atomicio(write_colored, lfd, buf, n) != n)
-          perror("atomicio failure"), exit(1);
+    while (pfd[0].fd != -1) {
+
+      if ((n = poll(pfd, 1, -1)) < 0) {
+	close(nfd);
+	perror("polling error");
+	exit(1);
+      }
+
+      if (pfd[0].revents & POLLIN) {
+	if ((n = read(nfd, buf, plen)) < 0)
+	  /* possibly not an error, just disconnection */
+	  perror("read error"), exit(1);
+	else if (n == 0) {
+	  shutdown(nfd, SHUT_RD);
+	  pfd[0].fd = -1;
+	  pfd[0].events = 0;
+	} else {
+	  if (atomicio(write_colored, lfd, buf, n) != n)
+	    perror("atomicio failure"), exit(1);
+	}
       }
     }
-  }
 
-  return 0;
+    return 0;
+  }
+  catch (TCLAP::ArgException &e) {
+    std::cerr << "Error: " << e.error() << std::endl;
+    return 0;
+  }
 }

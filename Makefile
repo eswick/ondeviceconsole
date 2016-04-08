@@ -17,7 +17,7 @@ include $(THEOS)/makefiles/common.mk
 TOOL_NAME := ondeviceconsole
 ondeviceconsole_FILES := main.mm
 
-CFLAGS += -stdlib=libstdc++ \
+CFLAGS += -stdlib=libstdc++ -std=c++11 \
 -isysroot /home/${ME}/.nix-profile/iPhoneOS9.2.sdk \
 -I /home/${ME}/.nix-profile/iPhoneOS9.2.sdk/usr/include/c++/4.2.1 \
 -I .
