@@ -1,7 +1,7 @@
 Package: com.eswick.ondeviceconsole
 Name: ondeviceconsole
 Depends: 
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm
 Description: Tool to view system log from the shell.
 Maintainer: Evan Swick
